@@ -186,3 +186,5 @@ SIMPLE_JWT : Dict[str, Any] = {
     'ALGORITHM': 'HS256',
     'SIGNING_KEY': SECRET_KEY,
 }
+
+

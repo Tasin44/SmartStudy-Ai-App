@@ -8,6 +8,7 @@ from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from .serializers import SendMessageSerializer,StartChatSerializer,ChatSessionSerializer
 from .models import ChatSession,ChatMessage
+from profileapp.models import UserProfile
 #❓❓❓ why httpx used
 def call_chat_ai(subject: str, history: list, user_message: str) -> str:#❓❓❓ what does they mean: subject:str,history:list,user_message:str
     """
@@ -81,21 +82,75 @@ class StartChatView(StandardResponseMixin, APIView):
 
 
 
-class SendMessageView(StandardResponseMixin,APIView):
-
-    permission_classes=[IsAuthenticated]
-
-    def post(self,request,session_id):
-
+class SendMessageView(StandardResponseMixin, APIView):
+    """
+    POST /chat/<session_id>/message/
+    Send a message, get AI reply. Full history is sent to AI each time.
+    """
+    permission_classes = [IsAuthenticated]
+ 
+    def post(self, request, session_id):
+        # Verify session ownership — users cannot access other users' chats
         try:
-            session=ChatSession.objects.get(id=session_id,user=request.user)#❓❓❓ why not filter?
-
+            session = ChatSession.objects.get(id=session_id, user=request.user)#❓❓❓ why not filter,why .get?
+            #❓❓❓ why chatsession checking is necessary in this view?
         except ChatSession.DoesNotExist:#❓❓❓ may I use here session.doesnotexist or just except?
-            return  self.error_response(
-                ""
+            return self.error_response(
+                "Chat session not found or you do not have permission to access it.",
+                status_code=404
             )
-        serializer=SendMessageSerializer(data=request.data)
+ 
+        serializer = SendMessageSerializer(data=request.data)
+        if not serializer.is_valid():
+            reason = extract_first_error(serializer.errors)
+            return self.error_response(f"Message invalid: {reason}", status_code=400)
+ 
+        user_text = serializer.validated_data['message']
+ 
+        # Fetch last 20 messages for context (prevents huge payloads to AI)
+        # Only fetch role + content — we don't need id/created_at for the AI call
+        past_messages = list(# #❓❓❓why this list() used? 
+            session.messages# ChatMessage model 'session' field related name
+            .values('role', 'content')
+            .order_by('created_at')[:20]         # oldest first, limit 20
+        )
+ 
+        # Call AI with history
+        try:
+            ai_reply = call_chat_ai(session.subject, past_messages, user_text)
+        except ValueError as e:
+            return self.error_response(str(e), status_code=503)
+        except Exception:
+            return self.error_response(
+                "AI service is temporarily unavailable. Please try again shortly.",
+                status_code=503
+            )
+ 
+        # Save both messages in bulk to minimize DB round trips
+        #❓❓❓ why this bulk creation doing here
+        #❓❓❓this 3(session,role,content) is the mandatory field
+        ChatMessage.objects.bulk_create([
+            ChatMessage(session=session, role=ChatMessage.ROLE_USER, content=user_text),
+            ChatMessage(session=session, role=ChatMessage.ROLE_AI, content=ai_reply),
+        ])
+ 
+        # Update session timestamp so ordering works correctly
+        session.save(update_fields=['updated_at'])
+ 
+        # Increment problems_solved counter
+        from django.db.models import F
+        UserProfile.objects.filter(user=request.user).update(
+            problems_solved=F('problems_solved') + 1
+        )
+ 
+        return self.success_response(
+            {"role": "assistant", "content": ai_reply},
+            message="Message sent and AI response received.",
+            status_code=200
+        )
         
+
+
         
 
 
