@@ -6,7 +6,7 @@ from coreapp.mixins import StandardResponseMixin,extract_first_error
 from coreapp.paginations import PageNumberPagination,StandardPagination
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
-from .serializers import SendMessageSerializer,StartChatSerializer,ChatSessionSerializer
+from .serializers import SendMessageSerializer,StartChatSerializer,ChatSessionSerializer,ChatMessageSerializer
 from .models import ChatSession,ChatMessage
 from profileapp.models import UserProfile
 #❓❓❓ why httpx used
@@ -152,6 +152,75 @@ class SendMessageView(StandardResponseMixin, APIView):
 
 
         
+
+
+
+
+class ChatHistoryView(StandardResponseMixin,APIView):
+
+    permission_classes=[IsAuthenticated]
+
+    def get(self,requst,session_id):
+        try:
+            session = ChatSession.objects.get(id=session_id,user=self.request.user)
+        except ChatSession.DoesNotExist:
+            return self.error_response(
+                "Chat session not found",
+                status_code=404
+            )
+        
+        
+        messages=session.messages.all()#chatmessage model connected with chatsession model with the related name messages that why this  messages used right?
+        paginator=StandardPagination()
+
+
+class ChatHistoryView(StandardResponseMixin, APIView):
+    """
+    GET /chat/<session_id>/messages/
+    Returns paginated message history for a session.
+    """
+    permission_classes = [IsAuthenticated]
+ 
+    def get(self, request, session_id):
+        try:
+            session = ChatSession.objects.get(id=session_id, user=request.user)
+        except ChatSession.DoesNotExist:
+            return self.error_response(
+                "Chat session not found or access denied.",
+                status_code=404
+            )
+        
+        #❓❓❓ what if I want to write the serializer line here serializer = ChatMessageSerializer(page, many=True)
+        #❓❓❓how to know I should use this below 4 field here, messages,paginator,page,
+        messages = session.messages.all()#chatmessage model connected with chatsession model with the related name messages that why this  messages used right?
+        paginator = StandardPagination()
+        page = paginator.paginate_queryset(messages, request)
+        serializer = ChatMessageSerializer(page, many=True)
+        return paginator.get_paginated_response(serializer.data)
+ 
+
+
+class ChatSessionListView(StandardResponseMixin, APIView):
+    """
+    GET /chat/sessions/?subject=math
+    Lists all chat sessions for the logged-in user.
+    """
+    permission_classes = [IsAuthenticated]
+ 
+    def get(self, request):
+        qs = ChatSession.objects.filter(user=request.user)#❓❓❓ what is qs here?
+        subject = request.query_params.get('subject')
+        if subject:
+            qs = qs.filter(subject=subject)
+ 
+        paginator = StandardPagination()
+        page = paginator.paginate_queryset(qs, request)
+        serializer = ChatSessionSerializer(page, many=True)
+        return paginator.get_paginated_response(serializer.data)
+
+
+
+
 
 
 
