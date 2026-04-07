@@ -6,6 +6,8 @@ from scanapp.models import SUBJECT_CHOICES
 
 User=get_user_model()
 
+
+#will convert this two id into int not uuid
 class ChatSession(models.Model):
     """
     A chat session is a conversation thread tied to one subject.
