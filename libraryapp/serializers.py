@@ -1,7 +1,4 @@
 
-
-
-
 from rest_framework import serializers
 from .models import (
     Note, LibraryImage, LibraryFile, Folder,
@@ -81,8 +78,6 @@ class LibraryImageCreateSerializer(serializers.ModelSerializer):
             )
         return value
 
-
-
 class LibraryImageReadSerializer(serializers.ModelSerializer):
     image_url = serializers.SerializerMethodField()
  
@@ -95,8 +90,6 @@ class LibraryImageReadSerializer(serializers.ModelSerializer):
         if obj.image and request:
             return request.build_absolute_uri(obj.image.url)
         return None
-
-
 
 # ── LibraryFile ────────────────────────────────────────────────────────────────
  

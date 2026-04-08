@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'authapp',
 ]
 
 MIDDLEWARE = [
@@ -187,4 +188,26 @@ SIMPLE_JWT : Dict[str, Any] = {
     'SIGNING_KEY': SECRET_KEY,
 }
 
+AUTH_USER_MODEL = 'authapp.User'
 
+CSRF_TRUSTED_ORIGINS = [
+        'https://6zpmb4x8-8025.inc1.devtunnels.ms/',
+        "http://localhost:8025",
+]
+
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# Swagger settings
+SWAGGER_SETTINGS : Dict[str, Any] = {
+    'SECURITY_DEFINITIONS': {
+        'Bearer': {
+            'type': 'apiKey',
+            'name': 'Authorization',
+            'in': 'header'
+        }
+    },
+    'USE_SESSION_AUTH': False,
+    'JSON_EDITOR': True,
+}
