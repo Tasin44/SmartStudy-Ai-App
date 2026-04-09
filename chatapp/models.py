@@ -19,7 +19,12 @@ class ChatSession(models.Model):
         User, on_delete=models.CASCADE,
         related_name='chat_sessions', db_index=True
     )
-    subject = models.CharField(max_length=50, choices=SUBJECT_CHOICES, db_index=True)#❓❓❓ what does choice , is it builtin
+    subject = models.CharField(
+        max_length=50,
+        choices=SUBJECT_CHOICES,
+        null=True,
+        blank=True
+    )#❓❓❓ what does choice , is it builtin
     title = models.CharField(max_length=200, blank=True, default='')  # auto-generated from first message
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -27,7 +32,7 @@ class ChatSession(models.Model):
     class Meta:
         ordering = ['-updated_at']
         indexes = [
-            models.Index(fields=['user', 'subject']),#❓❓❓ why I used user, subject together coupling, why not onl subject, only updated_at during indexing
+            #models.Index(fields=['user', 'subject']),#❓❓❓ why I used user, subject together coupling, why not onl subject, only updated_at during indexing
             models.Index(fields=['user', 'updated_at']),
         ]
  

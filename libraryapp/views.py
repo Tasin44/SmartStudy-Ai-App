@@ -7,7 +7,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
  
 from coreapp.mixins import StandardResponseMixin, extract_first_error
-from coreapp.pagination import StandardPagination
+from coreapp.paginations import StandardPagination
 from .models import (
     Note, LibraryImage, LibraryFile, Folder,
     UserStorageUsage, FREE_STORAGE_LIMIT_MB
@@ -205,6 +205,8 @@ class NoteListCreateView(StandardResponseMixin, APIView):
         #subject = serializer.validate_subject.get('subject')
         #text = serializer.validate_text.get('text')
 
+        #this is the ai call part on note
+        '''
         # Get AI explanation (non-blocking attempt — don't fail if AI is down)
         try:
             ai_response = call_text_ai(note.subject, note.text, mode='note')###❓❓❓what is the meaning of mode here
@@ -212,6 +214,8 @@ class NoteListCreateView(StandardResponseMixin, APIView):
             note.save(update_fields=['ai_response'])
         except Exception:
             pass  # AI failure shouldn't block note creation###❓❓❓what if I want to pass and error message here
+        '''
+
  
         return self.success_response(
             NoteReadSerializer(note).data,
@@ -219,15 +223,67 @@ class NoteListCreateView(StandardResponseMixin, APIView):
             status_code=201
         )
 
+class NoteDetailView(StandardResponseMixin, APIView):
+    """GET / PATCH / DELETE /library/notes/<id>/"""
+    permission_classes = [IsAuthenticated]
+ 
+    def _get_note(self, request, note_id):
+        try:
+            return Note.objects.get(id=note_id, user=request.user)
+        except Note.DoesNotExist:
+            return None
+ 
+    def get(self, request, note_id):
+        note = self._get_note(request, note_id)
+        if not note:
+            return self.error_response("Note not found or access denied.", status_code=404)
+        return self.success_response(NoteReadSerializer(note).data)
+ 
+    def patch(self, request, note_id):
+        note = self._get_note(request, note_id)
+        if not note:
+            return self.error_response("Note not found or access denied.", status_code=404)
+ 
+        serializer = NoteCreateSerializer(note, data=request.data, partial=True)##❓❓❓ how could I know I've to pass them like note,data,partial on the serializer calling?
+        if not serializer.is_valid():
+            reason = extract_first_error(serializer.errors)
+            return self.error_response(f"Note update failed: {reason}", status_code=400)
+ 
+        note = serializer.save()##❓❓❓ how to know when I've to pass data inside serializer.save()?
+        return self.success_response(NoteReadSerializer(note).data, message="Note updated.")
+ 
+    def delete(self, request, note_id):
+        note = self._get_note(request, note_id)
+        if not note:
+            return self.error_response("Note not found or access denied.", status_code=404)
+        note.delete()
+        return self.success_response({}, message="Note deleted successfully.")
 
 
 
 
 
+class LibraryImageListCreateView(StandardResponseMixin,APIView):
+    permission_classes=[IsAuthenticated]
+    parser_classes=[MultiPartParser,FormParser]
 
+    ##❓❓❓ why not I'm creating here a method like def _get_image(self, request, image_id):?
 
+    def get(self,request): ###❓❓❓ why not image id considering here? like get(self,request,image_id)
+        qs=LibraryImage.objects.filter(user=request.user)
+        if subject:= request.query_params.get('subject'):
+            qs=qs.filter(subject=subject)
+        if folder_id:=request.query_params.get('folder_id'):
+            qs=qs.filter(folder_id=folder_id)
+        
+        paginator = StandardPagination()
+        page=paginator.paginate_queryset(qs,request)
+        return paginator.get_paginated_response(
+            LibraryImageReadSerializer(page,many=True,context={'request':request}).data
+        )
 
-
+    def post(self,request):
+        pass 
 
 
 

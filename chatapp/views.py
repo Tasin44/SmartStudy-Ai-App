@@ -6,27 +6,31 @@ from coreapp.mixins import StandardResponseMixin,extract_first_error
 from coreapp.paginations import PageNumberPagination,StandardPagination
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
-from .serializers import SendMessageSerializer,StartChatSerializer,ChatSessionSerializer,ChatMessageSerializer
+from .serializers import SendMessageSerializer,StartChatSerializer,ChatSessionSerializer,ChatMessageSerializer,AskAIMessageSerializer
 from .models import ChatSession,ChatMessage
 from profileapp.models import UserProfile
 #❓❓❓ why httpx used
-def call_chat_ai(subject: str, history: list, user_message: str) -> str:#❓❓❓ what does they mean: subject:str,history:list,user_message:str
+def call_chat_ai(subject: str, history: list, user_message: str,model_choice: str) -> str:#❓❓❓ what does they mean: subject:str,history:list,user_message:str
     """
     Sends full conversation history to OpenAI ChatCompletion.
     history = [{"role": "user"/"assistant", "content": "..."}, ...]
     """
-    api_key = os.getenv('OPENAI_API_KEY')
-    if not api_key:
-        raise ValueError(
-            "AI service is not configured. "
-            "Please ask the administrator to set OPENAI_API_KEY."
-        )
+
+
+    import os,httpx 
  
-    system_prompt = (
-        f"You are an expert {subject} tutor. "
-        f"Answer all questions clearly, step by step, with examples when needed. "
-        f"Stay focused on {subject} topics."
-    )
+    if subject:
+        system_prompt = (
+            f"You are an expert {subject} tutor. "
+            f"Analyze the provided image and answer clearly step by step. "
+            f"Focus only on {subject}-related content."
+        )
+    else:
+        system_prompt = (
+            "You are an intelligent AI tutor. "
+            "Analyze the provided image and explain it clearly step by step. "
+            "Answer based on any relevant subject."
+        )
 
     #❓❓❓ what does two messages means? why they two used 
     # Build message list: system prompt + full history + new user message
@@ -35,20 +39,73 @@ def call_chat_ai(subject: str, history: list, user_message: str) -> str:#❓❓�
     messages.append({"role": "user", "content": user_message})  # new message
 
     #❓❓❓am I passing here request and the ai response fetching 
-    response = httpx.post(
-        "https://api.openai.com/v1/chat/completions",
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        json={"model": "gpt-4o", "messages": messages, "max_tokens": 1500},
-        timeout=60.0
-    )
+    # response = httpx.post(
+    #     "https://api.openai.com/v1/chat/completions",
+    #     headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+    #     json={"model": "gpt-4o", "messages": messages, "max_tokens": 1500},
+    #     timeout=60.0
+    # )
  
-    if response.status_code != 200:
-        raise ValueError(
-            f"AI service returned an error (status {response.status_code}). "
-            "Please try again later."
+    # 🔥 MODEL SWITCHING LOGIC
+    if model_choice == "gpt":
+        api_key = os.getenv("OPENAI_API_KEY")
+        print(api_key)
+
+        if not api_key:
+            raise ValueError(
+                "AI service is not configured. "
+                "Please ask the administrator to set OPENAI_API_KEY."
+            )
+        
+        url = "https://api.openai.com/v1/chat/completions"
+
+        response = httpx.post(
+            url,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "gpt-4o",
+                "messages": messages,
+                "max_tokens": 1500
+            },
+            timeout=60.0
         )
+
+        if response.status_code != 200:
+            raise ValueError(f"GPT error: {response.text}")
+
+        return response.json()['choices'][0]['message']['content']
+
+    elif model_choice == "claude":
+        api_key = os.getenv("CLAUDE_API_KEY")
+        url = "https://api.anthropic.com/v1/messages"
+
+        response = httpx.post(
+            url,
+            headers={
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "claude-3-sonnet-20240229",
+                "max_tokens": 1500,
+                "messages": messages
+            },
+            timeout=60.0
+        )
+
+        if response.status_code != 200:
+            raise ValueError(f"Claude error: {response.text}")
+
+        return response.json()['content'][0]['text'] ##❓❓❓ explain this line
+
+    else:
+        raise ValueError("Invalid AI model selected")
  
-    return response.json()['choices'][0]['message']['content']#❓❓❓ explain this line
+ 
  
 
 #❓❓❓what if I wants to use every modelname.objects.create() get_or_create instead
@@ -106,7 +163,7 @@ class SendMessageView(StandardResponseMixin, APIView):
             return self.error_response(f"Message invalid: {reason}", status_code=400)
  
         user_text = serializer.validated_data['message']
- 
+        model_choice = serializer.validated_data.get('model', 'gpt')  
         # Fetch last 20 messages for context (prevents huge payloads to AI)
         # Only fetch role + content — we don't need id/created_at for the AI call
         past_messages = list(# #❓❓❓why this list() used? 
@@ -117,10 +174,11 @@ class SendMessageView(StandardResponseMixin, APIView):
  
         # Call AI with history
         try:
-            ai_reply = call_chat_ai(session.subject, past_messages, user_text)
+            ai_reply = call_chat_ai(session.subject, past_messages, user_text,model_choice)
         except ValueError as e:
             return self.error_response(str(e), status_code=503)
-        except Exception:
+        except Exception as e:
+            print("ERROR:", str(e)) 
             return self.error_response(
                 "AI service is temporarily unavailable. Please try again shortly.",
                 status_code=503
@@ -222,7 +280,43 @@ class ChatSessionListView(StandardResponseMixin, APIView):
 
 
 
+class AskAPIView(StandardResponseMixin, APIView):
+    """
+    POST /chat/ask/
+    Stateless AI response (no session stored)
+    """
+    permission_classes = [IsAuthenticated]
 
+    def post(self, request):
+        serializer = AskAIMessageSerializer(data=request.data)
+
+        if not serializer.is_valid():
+            reason = extract_first_error(serializer.errors)
+            return self.error_response(f"Invalid request: {reason}", status_code=400)
+
+        user_text = serializer.validated_data['message']
+        # subject = serializer.validated_data['subject']
+        subject = serializer.validated_data.get('subject', None)
+        model_choice = serializer.validated_data.get('model', 'gpt')
+
+        # ❌ No history (stateless)
+        history = []
+
+        try:
+            # ai_reply = call_chat_ai(subject, history, user_text, model_choice)
+            ai_reply = call_chat_ai(subject,history, user_text, model_choice)
+        except Exception as e:
+            print("ERROR:", str(e)) 
+            return self.error_response(
+                "AI service unavailable",
+                status_code=503
+            )
+
+        return self.success_response(
+            {"role": "assistant", "content": ai_reply},
+            message="AI response generated",
+            status_code=200
+        )
 
 
 

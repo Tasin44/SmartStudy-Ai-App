@@ -48,8 +48,9 @@ INSTALLED_APPS = [
     'authapp',
     'profileapp',
     'coreapp',
-    # 'chatapp',
-    # 'scanapp',
+    'chatapp',
+    'scanapp',
+    'libraryapp',
 
 ]
 

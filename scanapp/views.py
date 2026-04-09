@@ -6,7 +6,7 @@ from coreapp.mixins import StandardResponseMixin,extract_first_error
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser,FormParser,JSONParser
-from serializers import ScanHistorySerializer,ScanRequestSerializer
+from .serializers import ScanHistorySerializer,ScanRequestSerializer
 from .models import ScanHistory,SUBJECT_CHOICES
 from authapp.models import User
 from profileapp.models import UserProfile
@@ -100,7 +100,17 @@ class ScanView(StandardResponseMixin,APIView):
 
         subject = serializer.validated_data['subject']
         image=serializer.validated_data['image']
-        question = serializer.validated_data('question','')#❓❓❓ why here ()?
+        #question = serializer.validated_data('question','')#❓❓❓ why here ()?
+        '''
+        validated_data is a dictionary, not a function.
+        So when you use (), Python thinks you're trying to call a dict → 
+
+        That’s why you get:
+
+        TypeError: 'dict' object is not callable
+        
+        '''
+        question = serializer.validated_data.get('question', '')
 
         # Call AI — catch any errors and return meaningful message
         try:

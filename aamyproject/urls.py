@@ -21,7 +21,8 @@ from django.conf import settings
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('auth/', include('authapp.urls')),
-    # path('chat/', include('chatapp.urls')),
-    # path('scan/', include('scanapp.urls')),
+    path('chat/', include('chatapp.urls')),
+    path('scan/', include('scanapp.urls')),
     path('profile/', include('profileapp.urls')),
+    path('library/', include('libraryapp.urls')),
 ]
