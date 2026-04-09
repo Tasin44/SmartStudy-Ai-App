@@ -11,6 +11,8 @@ from django.utils import timezone
 from datetime import timedelta
 import random
 import string
+from drf_yasg import openapi
+from drf_yasg.utils import swagger_auto_schema
 from .serializers import (
     SignupSerializer, VerifyOTPSerializer, ResendOTPSerializer,
     LoginSerializer, ForgotPasswordSerializer, ResetPasswordSerializer
@@ -27,6 +29,7 @@ from coreapp.mixins import StandardResponseMixin,extract_first_error
 class SignupView(StandardResponseMixin, APIView):
     permission_classes = [AllowAny]
     
+    @swagger_auto_schema(request_body=SignupSerializer)
     def post(self, request):
         # print("hello!")
         serializer = SignupSerializer(data=request.data)
@@ -50,6 +53,7 @@ class SignupView(StandardResponseMixin, APIView):
 class VerifyOTPView(StandardResponseMixin, APIView):
     permission_classes = [AllowAny]
     
+    @swagger_auto_schema(request_body=VerifyOTPSerializer)
     def post(self, request):
         serializer = VerifyOTPSerializer(data=request.data)
         if serializer.is_valid():
@@ -87,6 +91,7 @@ class VerifyOTPView(StandardResponseMixin, APIView):
 class ResendOTPView(StandardResponseMixin, APIView):
     permission_classes = [AllowAny]
     
+    @swagger_auto_schema(request_body=ResendOTPSerializer)
     def post(self, request):
         serializer = ResendOTPSerializer(data=request.data)
         if serializer.is_valid():
@@ -120,6 +125,7 @@ class ResendOTPView(StandardResponseMixin, APIView):
 class LoginView(StandardResponseMixin, APIView):
     permission_classes = [AllowAny]
 
+    @swagger_auto_schema(request_body=LoginSerializer)
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
         if serializer.is_valid():
@@ -163,6 +169,15 @@ class LogoutView(StandardResponseMixin, APIView):
 class LogoutView(APIView):
     permission_classes = [AllowAny]
 
+    @swagger_auto_schema(
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=['refresh'],
+            properties={
+                'refresh': openapi.Schema(type=openapi.TYPE_STRING),
+            },
+        )
+    )
     def post(self, request):
         try:
             refresh_token = request.data.get("refresh")
@@ -184,6 +199,7 @@ class LogoutView(APIView):
 class ForgotPasswordView(StandardResponseMixin, APIView):
     permission_classes = [AllowAny]
     
+    @swagger_auto_schema(request_body=ForgotPasswordSerializer)
     def post(self, request):
         serializer = ForgotPasswordSerializer(data=request.data)
         if serializer.is_valid():
@@ -218,6 +234,7 @@ class ResetPasswordView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]  # user must be logged in via OTP verify token
 
     '''
+    @swagger_auto_schema(request_body=ResetPasswordSerializer)
     def post(self, request):
         serializer = ResetPasswordSerializer(data=request.data)
         if serializer.is_valid():

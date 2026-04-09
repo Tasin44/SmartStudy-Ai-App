@@ -43,7 +43,14 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'rest_framework',
+    'drf_yasg',
     'authapp',
+    'profileapp',
+    'coreapp',
+    # 'chatapp',
+    # 'scanapp',
+
 ]
 
 MIDDLEWARE = [
@@ -128,6 +135,9 @@ CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', 'http://localhost:8017'
 CORS_ALLOW_ALL_ORIGINS = True#allowing all the different origins 
 CORS_ALLOW_CREDENTIALS = True
 
+USE_X_FORWARDED_HOST = True
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
@@ -211,3 +221,5 @@ SWAGGER_SETTINGS : Dict[str, Any] = {
     'USE_SESSION_AUTH': False,
     'JSON_EDITOR': True,
 }
+
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'

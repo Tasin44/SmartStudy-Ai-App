@@ -14,7 +14,7 @@ User = get_user_model()
 
 class SignupSerializer(serializers.Serializer):
     email = serializers.EmailField()
-    name = serializers.CharField(max_length=150)
+    # name = serializers.CharField(max_length=150)
     password = serializers.CharField(
         write_only=True,
         min_length=8,
@@ -46,7 +46,7 @@ class SignupSerializer(serializers.Serializer):
         user = User.objects.create_user(
             username=email,
             email=email,
-            first_name=validated_data['name'],
+            # first_name=validated_data['name'],
             password=validated_data['password'],
             referral_code=validated_data.get('referral_code') or None,
             verified=False
@@ -113,8 +113,8 @@ This code is valid for 10 minutes. Please do not share it with anyone for securi
 If you did not create an account with Dalil, please ignore this email or contact our support team immediately.
 
 Best regards,
-The Dalil Team
-support@dalil-nl.cloud"""
+The Smart Study App Team,
+support@smartstudy.com"""
         send_mail(subject, message, 'noreply@yourdomain.com', [email])
 
 

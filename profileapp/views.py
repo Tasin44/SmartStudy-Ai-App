@@ -6,7 +6,7 @@ from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
  
-from core.mixins import StandardResponseMixin, extract_first_error
+from coreapp.mixins import StandardResponseMixin, extract_first_error
 from .models import UserProfile
 from .serializers import (
     ProfileSetupSerializer,
