@@ -260,47 +260,227 @@ class NoteDetailView(StandardResponseMixin, APIView):
         return self.success_response({}, message="Note deleted successfully.")
 
 
-
-
-
-class LibraryImageListCreateView(StandardResponseMixin,APIView):
-    permission_classes=[IsAuthenticated]
-    parser_classes=[MultiPartParser,FormParser]
-
-    ##❓❓❓ why not I'm creating here a method like def _get_image(self, request, image_id):?
-
-    def get(self,request): ###❓❓❓ why not image id considering here? like get(self,request,image_id)
-        qs=LibraryImage.objects.filter(user=request.user)
-        if subject:= request.query_params.get('subject'):
-            qs=qs.filter(subject=subject)
-        if folder_id:=request.query_params.get('folder_id'):
-            qs=qs.filter(folder_id=folder_id)
-        
+# ── Library Image Views ────────────────────────────────────────────────────────
+ 
+class LibraryImageListCreateView(StandardResponseMixin, APIView):
+    """
+    GET  /library/images/?subject=physics
+    POST /library/images/   — checks storage quota before saving
+    """
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+ ##❓❓❓ why not I'm creating here a method like def _get_image(self, request, image_id):?
+    def get(self, request): ###❓❓❓ why not image id considering here? like get(self,request,image_id)
+        qs = LibraryImage.objects.filter(user=request.user)
+        if subject := request.query_params.get('subject'):
+            qs = qs.filter(subject=subject)
+        if folder_id := request.query_params.get('folder_id'):
+            qs = qs.filter(folder_id=folder_id)
+ 
         paginator = StandardPagination()
-        page=paginator.paginate_queryset(qs,request)
+        page = paginator.paginate_queryset(qs, request)
         return paginator.get_paginated_response(
-            LibraryImageReadSerializer(page,many=True,context={'request':request}).data
+            LibraryImageReadSerializer(page, many=True, context={'request': request}).data
+        )
+ ##❓❓❓ post method er starting e serializer call korte hoy, get method er response e serializer call korte hoy?
+    def post(self, request):
+        serializer = LibraryImageCreateSerializer(data=request.data)
+        if not serializer.is_valid():
+            reason = extract_first_error(serializer.errors)
+            return self.error_response(f"Image upload failed: {reason}", status_code=400)
+ 
+        image = serializer.validated_data['image']##❓❓❓ in serailizer, I've a method named validate_image, but here I'm calling validated_data[] for the image, why?
+ 
+        # Enforce storage quota for free users
+        allowed, reason = check_storage_quota(request.user, image.size)##❓❓❓ how this line working
+        if not allowed:
+            return self.error_response(reason, status_code=403)
+ 
+        folder = serializer.validated_data.get('folder')##❓❓❓ for image I'm using "image=serializer.validated_data['image'] but for folder I'm using something different why? can't I use same ?
+        if folder and folder.user != request.user:
+            return self.error_response("Folder not found or access denied.", status_code=404)
+ 
+        lib_image = serializer.save(##❓❓❓ how to know which thing I've to pass on serializer.save
+            user=request.user,
+            file_size_bytes=image.size
+        )
+ 
+        # Update storage tracker
+        add_storage_usage(request.user, image.size)
+ 
+        # AI vision analysis (best-effort)
+        '''
+        try:
+            from scanapp.views import call_vision_ai
+            ai_resp = call_vision_ai(image, lib_image.subject, '')
+            lib_image.ai_response = ai_resp
+            lib_image.save(update_fields=['ai_response'])
+        except Exception:
+            pass
+        '''
+ 
+        return self.success_response(
+            LibraryImageReadSerializer(lib_image, context={'request': request}).data,
+            message="Image uploaded and saved to library successfully.",
+            status_code=201
         )
 
-    def post(self,request):
-        pass 
+
+class LibraryImageDeleteView(StandardResponseMixin, APIView):
+    """DELETE /library/images/<id>/"""
+    permission_classes = [IsAuthenticated]
+ 
+    def delete(self, request, image_id):
+        try:
+            img = LibraryImage.objects.get(id=image_id, user=request.user)
+        except LibraryImage.DoesNotExist:
+            return self.error_response("Image not found or access denied.", status_code=404)
+ 
+        reduce_storage_usage(request.user, img.file_size_bytes)
+        ##❓❓❓ what if I just do img.delete() , isn't it enough?
+        img.image.delete(save=False)  # delete actual file from disk
+        img.delete()
+        return self.success_response({}, message="Image deleted successfully.")
+
+# ── Library File Views ─────────────────────────────────────────────────────────
+ 
+class LibraryFileListCreateView(StandardResponseMixin, APIView):
+    """
+    GET  /library/files/?subject=chemistry
+    POST /library/files/   — checks storage quota
+    """
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+ 
+    def get(self, request):
+        qs = LibraryFile.objects.filter(user=request.user)
+        if subject := request.query_params.get('subject'):
+            qs = qs.filter(subject=subject)
+        if folder_id := request.query_params.get('folder_id'):
+            qs = qs.filter(folder_id=folder_id)
+ 
+        paginator = StandardPagination()
+        page = paginator.paginate_queryset(qs, request)
+        return paginator.get_paginated_response(
+            LibraryFileReadSerializer(page, many=True, context={'request': request}).data
+        )
+ 
+    def post(self, request):
+        serializer = LibraryFileCreateSerializer(data=request.data)
+        if not serializer.is_valid():
+            reason = extract_first_error(serializer.errors)
+            return self.error_response(f"File upload failed: {reason}", status_code=400)
+ 
+        file = serializer.validated_data['file']
+ 
+        allowed, reason = check_storage_quota(request.user, file.size)
+        if not allowed:
+            return self.error_response(reason, status_code=403)
+ 
+        folder = serializer.validated_data.get('folder')
+        if folder and folder.user != request.user:
+            return self.error_response("Folder not found or access denied.", status_code=404)
+ 
+        lib_file = serializer.save(
+            user=request.user,
+            file_size_bytes=file.size,
+            original_filename=file.name
+        )
+ 
+        add_storage_usage(request.user, file.size)
+ 
+        return self.success_response(
+            LibraryFileReadSerializer(lib_file, context={'request': request}).data,
+            message="File uploaded and saved to library successfully.",
+            status_code=201
+        )
 
 
+class LibraryFileDeleteView(StandardResponseMixin, APIView):
+    """DELETE /library/files/<id>/"""
+    permission_classes = [IsAuthenticated]
+ 
+    def delete(self, request, file_id):
+        try:
+            lib_file = LibraryFile.objects.get(id=file_id, user=request.user)
+        except LibraryFile.DoesNotExist:
+            return self.error_response("File not found or access denied.", status_code=404)
+ 
+        reduce_storage_usage(request.user, lib_file.file_size_bytes)
+        lib_file.file.delete(save=False)
+        lib_file.delete()
+        return self.success_response({}, message="File deleted successfully.")
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+##❓❓❓ Explain the whole method line by line
+# ── Library Search ─────────────────────────────────────────────────────────────
+ 
+class LibrarySearchView(StandardResponseMixin, APIView):
+    """
+    GET /library/search/?q=photosynthesis&type=notes&subject=biology
+    Searches across notes, images, files, or all.
+    """
+    permission_classes = [IsAuthenticated]
+ 
+    def get(self, request):
+        query = request.query_params.get('q', '').strip()
+        search_type = request.query_params.get('type', 'all')   # notes|images|files|folders|all
+        subject = request.query_params.get('subject', '')
+ 
+        if not query:
+            return self.error_response(
+                "Search query 'q' is required. Example: ?q=photosynthesis",
+                status_code=400
+            )
+ 
+        result = {}
+ 
+        # Search notes
+        if search_type in ('notes', 'all'):
+            note_qs = Note.objects.filter(
+                user=request.user
+            ).filter(
+                Q(title__icontains=query) | Q(text__icontains=query) | Q(subject__icontains=query)
+            )
+            if subject:
+                note_qs = note_qs.filter(subject__icontains=subject)
+            result['notes'] = NoteReadSerializer(note_qs[:20], many=True).data
+ 
+        # Search images
+        if search_type in ('images', 'all'):
+            img_qs = LibraryImage.objects.filter(
+                user=request.user
+            ).filter(
+                Q(title__icontains=query) | Q(subject__icontains=query)
+            )
+            if subject:
+                img_qs = img_qs.filter(subject__icontains=subject)
+            result['images'] = LibraryImageReadSerializer(
+                img_qs[:20], many=True, context={'request': request}
+            ).data
+ 
+        # Search files
+        if search_type in ('files', 'all'):
+            file_qs = LibraryFile.objects.filter(
+                user=request.user
+            ).filter(
+                Q(title__icontains=query) | Q(subject__icontains=query) | Q(original_filename__icontains=query)
+            )
+            if subject:
+                file_qs = file_qs.filter(subject__icontains=subject)
+            result['files'] = LibraryFileReadSerializer(
+                file_qs[:20], many=True, context={'request': request}
+            ).data
+ 
+        # Search folders
+        if search_type in ('folders', 'all'):
+            folder_qs = Folder.objects.filter(
+                user=request.user,
+                name__icontains=query
+            )
+            result['folders'] = FolderSerializer(folder_qs[:20], many=True).data
+ 
+        return self.success_response(result, message="Search results fetched.")
 
 
 
