@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     'chatapp',
     'scanapp',
     'libraryapp',
+    'twofapp',
 
 ]
 

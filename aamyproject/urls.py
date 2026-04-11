@@ -25,4 +25,5 @@ urlpatterns = [
     path('scan/', include('scanapp.urls')),
     path('profile/', include('profileapp.urls')),
     path('library/', include('libraryapp.urls')),
+    path('2fa/', include('twofapp.urls')),
 ]
