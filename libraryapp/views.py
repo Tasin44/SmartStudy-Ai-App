@@ -328,7 +328,7 @@ class LibraryImageListCreateView(StandardResponseMixin, APIView):
 
 class LibraryImageDetailView(StandardResponseMixin,APIView):
     permission_classes=[IsAuthenticated]
-
+    parser_classes=[MultiPartParser,FormParser]
     def _get_image(self,request,image_id):
         try:
             return LibraryImage.objects.get(id=image_id,user=request.user)
@@ -343,6 +343,18 @@ class LibraryImageDetailView(StandardResponseMixin,APIView):
         return self.success_response(
             LibraryImageReadSerializer(image, context={'request': request}).data
         )
+    
+
+    def patch(self,request,image_id):
+        image=self._get_image(request,image_id)
+        if not image:
+            return self.error_response("Image not found",status_code=404)
+        serializer=LibraryImageCreateSerializer(image,data=request.data,partial=True)
+        if not serializer.is_valid():
+            reason=extract_first_error(serializer.errors)
+            return self.error_response(f"Image update failed:{reason}",status_code=400)
+        image=serializer.save()
+        return self.success_response(LibraryImageReadSerializer(image,context={'request':request}).data)
 
 class LibraryImageDeleteView(StandardResponseMixin, APIView):
     """DELETE /library/images/<id>/"""
@@ -431,6 +443,7 @@ class LibraryFileDeleteView(StandardResponseMixin, APIView):
 
 class LibraryFileDetailView(StandardResponseMixin,APIView):
     permission_classes=[IsAuthenticated]
+    parser_classes=[MultiPartParser,FormParser]
 
     def _get_file(self,request,file_id):
         try:
@@ -446,6 +459,16 @@ class LibraryFileDetailView(StandardResponseMixin,APIView):
             LibraryFileReadSerializer(file,context={'request':request}).data
         )
 
+    def patch(self,request,file_id):
+        file=self._get_file(request,file_id)
+        if not file:
+            return self.error_response("File not found",status_code=400)
+        serializer=LibraryFileReadSerializer(file,data=request.data,partial=True)
+        if not serializer.is_valid():
+            reason=extract_first_error(serializer.errors)
+            return self.error_response(f"file update failed:{reason}",status_code=400)
+        file=serializer.save()
+        return self.success_response(LibraryFileReadSerializer(file,context={'request':request}).data)
 
 
 ##❓❓❓ Explain the whole method line by line
