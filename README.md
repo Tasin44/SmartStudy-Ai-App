@@ -1,93 +1,199 @@
-# SmartStudy Ai app
+# SmartStudy Backend API
 
+Production-style Django REST backend for an AI-powered study platform with authentication, chat tutoring, image scanning, profile progression, personal learning library, and optional two-factor authentication.
 
+This project is designed to demonstrate backend engineering strengths for interviews: modular architecture, secure auth flows, API consistency, pagination, indexing strategy, and third-party AI service integration.
 
-## Getting started
+## What This Backend Solves
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+- Secure user onboarding with OTP email verification.
+- JWT-based session management for API clients.
+- Subject-aware AI tutoring via chat and image scan workflows.
+- User profile progression tracking (study minutes, activity days, solved problems, badges, levels).
+- Personal library for notes, images, and documents with folder organization and quota tracking.
+- Optional 2FA verification flow.
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+## Tech Stack
 
-## Add your files
+- Python, Django, Django REST Framework
+- JWT auth with djangorestframework-simplejwt
+- OpenAPI/Swagger docs with drf-yasg
+- SQLite (current default), PostgreSQL-ready dependency included
+- AI integrations through HTTP APIs (OpenAI, Claude)
+- CORS support, WhiteNoise middleware, pagination/filtering/throttling
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+## Architecture Overview
 
+The codebase follows an app-per-domain Django structure:
+
+- authapp: signup, OTP verification, login, logout, password reset
+- profileapp: profile setup, profile fetch, study activity updates, badge/level logic
+- chatapp: chat sessions, threaded chat history, AI replies, quick ask history
+- scanapp: image upload + subject-aware AI explanation + scan history
+- libraryapp: folders, notes, images, files, search, overview, storage accounting
+- twofapp: send OTP, verify OTP, check 2FA status
+- coreapp: reusable response mixin and standard pagination
+
+## Key Backend Design Decisions
+
+- Consistent API envelope
+	All major endpoints return a unified response shape with success flag, message, data, and timestamp.
+
+- Domain separation by Django apps
+	Each business area has its own models, serializers, urls, and views for maintainability.
+
+- UUID primary keys
+	Entity IDs are UUIDs for better distribution and safer external exposure.
+
+- Ownership-safe data access
+	Query patterns are scoped to request.user for privacy and multi-tenant safety.
+
+- Index-first modeling
+	Models include indexes for frequent filters (user, subject, created_at, session) to support scalable list queries.
+
+- Bounded list endpoints
+	Standard pagination avoids unbounded responses and protects service performance.
+
+- Environment-based secrets
+	API keys and sensitive settings are loaded from environment variables, not hardcoded.
+
+## Main API Surface
+
+Base route groups:
+
+- /auth/
+- /chat/
+- /scan/
+- /profile/
+- /library/
+- /2fa/
+
+### Authentication
+
+- POST /auth/signup/
+- POST /auth/verify-otp/
+- POST /auth/resend-otp/
+- POST /auth/login/
+- POST /auth/logout/
+- POST /auth/forgot-password/
+- POST /auth/reset-password/
+
+### Chat
+
+- POST /chat/start/
+- GET /chat/sessions/
+- POST /chat/{session_id}/message/
+- GET /chat/{session_id}/messages/
+- POST /chat/ask/
+
+### Scan
+
+- POST /scan/
+- GET /scan/history/
+
+### Profile
+
+- POST /profile/setup/
+- GET /profile/
+- PATCH /profile/activity/
+
+### Library
+
+- Folder CRUD style endpoints
+- Note create/list/detail endpoints
+- Image and file upload/detail/delete endpoints
+- Search and overview endpoints
+- Folder contents endpoint
+
+### Two-Factor Authentication
+
+- POST /2fa/send/
+- POST /2fa/verify/
+- GET /2fa/status/
+
+## Swagger API Docs
+
+Swagger is available per major module:
+
+- /auth/swagger/
+- /chat/swagger/
+- /scan/swagger/
+- /profile/swagger/
+
+JSON schema endpoints are also exposed for these modules.
+
+## Data Model Snapshot
+
+- User + OTP
+	Custom user model with verification state and OTP lifecycle.
+
+- UserProfile
+	One-to-one profile with progress metrics and computed badges/levels.
+
+- ChatSession + ChatMessage + AskChatHistory
+	Conversation threads, ordered messages, and quick ask history.
+
+- ScanHistory
+	Uploaded image, subject, question, AI response, and created time.
+
+- Folder + Note + LibraryImage + LibraryFile + UserStorageUsage
+	Organized personal knowledge base and per-user storage accounting.
+
+## Local Setup
+
+1. Clone repository and move into project root.
+2. Create and activate virtual environment.
+3. Install dependencies.
+4. Configure environment variables.
+5. Run migrations.
+6. Start development server.
+
+Example commands:
+
+```bash
+python -m venv venv
+# Windows PowerShell
+venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py runserver
 ```
-cd existing_repo
-git remote add origin https://gitlab.betopialimited.com/Tasinjvai44/smartstudy-ai-app.git
-git branch -M main
-git push -uf origin main
-```
 
-## Integrate with your tools
+## Environment Variables
 
-- [ ] [Set up project integrations](https://gitlab.betopialimited.com/Tasinjvai44/smartstudy-ai-app/-/settings/integrations)
+Set these in your environment or .env file:
 
-## Collaborate with your team
+- SECRET_KEY
+- ALLOWED_HOSTS
+- CSRF_TRUSTED_ORIGINS
+- OPENAI_API_KEY
+- CLAUDE_API_KEY
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+## Security and Reliability Notes
 
-## Test and Deploy
+- JWT authentication enabled via DRF SimpleJWT.
+- Throttling configured for anonymous and authenticated users.
+- OTP flows include expiration and one-time usage controls.
+- User-scoped query filtering protects cross-user data access.
 
-Use the built-in continuous integration in GitLab.
+## Recruiter-Focused Highlights
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+If discussing this project in interviews, emphasize:
 
-***
+- Built a modular, domain-driven Django backend with clean separation of concerns.
+- Implemented full auth lifecycle: signup, OTP verify, JWT login/logout, password reset.
+- Integrated multi-provider AI workflows (chat + vision) with resilient error handling.
+- Designed scalable list endpoints with pagination and indexed query patterns.
+- Created consistent API contracts to simplify frontend and mobile integration.
+- Added profile gamification logic (badges/levels) as computed backend business rules.
 
-# Editing this README
+## Future Improvements
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+- Move AI calls to Celery background tasks for better latency and reliability under load.
+- Add comprehensive automated tests per app (unit + API integration).
+- Add role-based permissions for admin/reporting features.
+- Add observability (structured logging, tracing, metrics).
 
-## Suggestions for a good README
+## Project Status
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
-
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
-
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
-
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+Active backend project suitable for portfolio and backend interview discussion.
