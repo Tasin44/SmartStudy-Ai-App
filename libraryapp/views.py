@@ -326,6 +326,24 @@ class LibraryImageListCreateView(StandardResponseMixin, APIView):
         )
 
 
+class LibraryImageDetailView(StandardResponseMixin,APIView):
+    permission_classes=[IsAuthenticated]
+
+    def _get_image(self,request,image_id):
+        try:
+            return LibraryImage.objects.get(id=image_id,user=request.user)
+        except LibraryImage.DoesNotExist:
+            return None
+    
+    def get(self,request,image_id):
+        image=self._get_image(request,image_id)#❓❓❓ why passing here request? why not request.user?
+        if not image:
+            return self.error_response("Image not found",status_code=404)
+        # return self.success_response(LibraryImageReadSerializer(image).data)
+        return self.success_response(
+            LibraryImageReadSerializer(image, context={'request': request}).data
+        )
+
 class LibraryImageDeleteView(StandardResponseMixin, APIView):
     """DELETE /library/images/<id>/"""
     permission_classes = [IsAuthenticated]
@@ -411,6 +429,24 @@ class LibraryFileDeleteView(StandardResponseMixin, APIView):
         lib_file.delete()
         return self.success_response({}, message="File deleted successfully.")
 
+class LibraryFileDetailView(StandardResponseMixin,APIView):
+    permission_classes=[IsAuthenticated]
+
+    def _get_file(self,request,file_id):
+        try:
+            return LibraryFile.objects.get(id=file_id,user=request.user)
+        except LibraryFile.DoesNotExist:
+            return None
+    
+    def get(self,request,file_id):
+        file=self._get_file(request,file_id)
+        if not file:
+            return self.error_response("File not found",status_code=404)
+        return self.success_response(
+            LibraryFileReadSerializer(file,context={'request':request}).data
+        )
+
+
 
 ##❓❓❓ Explain the whole method line by line
 # ── Library Search ─────────────────────────────────────────────────────────────
@@ -481,6 +517,106 @@ class LibrarySearchView(StandardResponseMixin, APIView):
             result['folders'] = FolderSerializer(folder_qs[:20], many=True).data
  
         return self.success_response(result, message="Search results fetched.")
+
+
+
+
+class LibraryOverviewView(StandardResponseMixin, APIView):
+    """
+    GET /library/overview/
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        notes_qs = Note.objects.filter(user=request.user)
+        images_qs = LibraryImage.objects.filter(user=request.user)
+        folders_qs = Folder.objects.filter(user=request.user)
+
+        notes_data = NoteReadSerializer(notes_qs, many=True).data
+        images_data = LibraryImageReadSerializer(
+            images_qs, many=True, context={"request": request}
+        ).data
+        folders_data = FolderSerializer(folders_qs, many=True).data
+
+        notes_count = notes_qs.count()
+        images_count = images_qs.count()
+        folders_count = folders_qs.count()
+        total_count = notes_count + images_count + folders_count
+
+        return self.success_response(
+            {
+                "notes": {"count": notes_count, "items": notes_data},
+                "images": {"count": images_count, "items": images_data},
+                "folders": {"count": folders_count, "items": folders_data},
+                "total_count": total_count
+            },
+            message="Library overview fetched successfully."
+        )
+    
+
+class FolderContentsView(StandardResponseMixin, APIView):
+    """
+    GET /library/folders/<folder_id>/contents/
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, folder_id):
+        try:
+            folder = Folder.objects.get(id=folder_id, user=request.user)
+        except Folder.DoesNotExist:
+            return self.error_response("Folder not found or access denied.", status_code=404)
+
+        notes_qs = Note.objects.filter(user=request.user, folder=folder)
+        images_qs = LibraryImage.objects.filter(user=request.user, folder=folder)
+        files_qs = LibraryFile.objects.filter(user=request.user, folder=folder)
+
+        return self.success_response(
+            {
+                "folder": FolderSerializer(folder).data,
+                "notes": {
+                    "count": notes_qs.count(),
+                    "items": NoteReadSerializer(notes_qs, many=True).data
+                },
+                "images": {
+                    "count": images_qs.count(),
+                    "items": LibraryImageReadSerializer(
+                        images_qs, many=True, context={"request": request}
+                    ).data
+                },
+                "files": {
+                    "count": files_qs.count(),
+                    "items": LibraryFileReadSerializer(
+                        files_qs, many=True, context={"request": request}
+                    ).data
+                },
+                "total_count": notes_qs.count() + images_qs.count() + files_qs.count()
+            },
+            message="Folder contents fetched successfully."
+        )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

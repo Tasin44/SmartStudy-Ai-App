@@ -178,7 +178,8 @@ class ScanHistoryView(StandardResponseMixin, APIView):
 
 
 
-
+class SaveScanToLibraryView(StandardResponseMixin, APIView):
+    pass 
 
 
 

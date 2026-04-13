@@ -3,7 +3,7 @@
 
 from rest_framework import serializers
 from scanapp.models import SUBJECT_CHOICES
-from .models import ChatMessage,ChatSession
+from .models import ChatMessage,ChatSession,AskChatHistory
 
 ##❓❓❓ what is the work of all of this individual serializer
 class StartChatSerializer(serializers.Serializer):
@@ -44,7 +44,10 @@ class AskAIMessageSerializer(serializers.Serializer):
 
 
 
-
+class AskHistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AskChatHistory
+        fields = ['id','prompt', 'ai_response', 'created_at']
 
 
 

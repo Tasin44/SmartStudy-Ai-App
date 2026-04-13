@@ -62,7 +62,21 @@ class ChatMessage(models.Model):
             models.Index(fields=['session', 'created_at']),
         ]
 
+class AskChatHistory(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='ask_histories', db_index=True)
+    # subject = models.CharField(max_length=50, choices=SUBJECT_CHOICES, null=True, blank=True)
+    # model = models.CharField(max_length=20, default='gpt')
+    prompt = models.TextField()
+    ai_response = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'created_at'])
+            # models.Index(fields=['user', 'subject']),
+        ]
 
 
 

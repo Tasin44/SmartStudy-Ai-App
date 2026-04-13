@@ -6,9 +6,10 @@ from coreapp.mixins import StandardResponseMixin,extract_first_error
 from coreapp.paginations import PageNumberPagination,StandardPagination
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
-from .serializers import SendMessageSerializer,StartChatSerializer,ChatSessionSerializer,ChatMessageSerializer,AskAIMessageSerializer
-from .models import ChatSession,ChatMessage
+from .serializers import SendMessageSerializer,StartChatSerializer,ChatSessionSerializer,ChatMessageSerializer,AskAIMessageSerializer,AskHistorySerializer
+from .models import ChatSession,ChatMessage,AskChatHistory
 from profileapp.models import UserProfile
+
 #❓❓❓ why httpx used
 def call_chat_ai(subject: str, history: list, user_message: str,model_choice: str) -> str:#❓❓❓ what does they mean: subject:str,history:list,user_message:str
     """
@@ -282,8 +283,9 @@ class ChatSessionListView(StandardResponseMixin, APIView):
 
 class AskAPIView(StandardResponseMixin, APIView):
     """
-    POST /chat/ask/
-    Stateless AI response (no session stored)
+    POST /chat/ask/   -> ask + save prompt/response
+    GET /chat/ask/    -> list all ask history of logged in user
+    DELETE /chat/ask/ -> delete all ask history of logged in user
     """
     permission_classes = [IsAuthenticated]
 
@@ -311,12 +313,30 @@ class AskAPIView(StandardResponseMixin, APIView):
                 "AI service unavailable",
                 status_code=503
             )
-
+        AskChatHistory.objects.create(
+            user=request.user,
+            prompt=user_text,
+            ai_response=ai_reply
+        )
         return self.success_response(
             {"role": "assistant", "content": ai_reply},
             message="AI response generated",
             status_code=200
         )
+    
+    def get(self, request):
+        qs = AskChatHistory.objects.filter(user=request.user)
+        serializer = AskHistorySerializer(qs, many=True)
+        return self.success_response(serializer.data, message="Ask history fetched.")
+
+    def delete(self, request):
+        deleted_count, _ = AskChatHistory.objects.filter(user=request.user).delete()#❓❓❓ why _ used?
+        return self.success_response(
+            {"deleted_count": deleted_count},
+            message="All ask history deleted successfully."
+        )
+
+
 
 
 
