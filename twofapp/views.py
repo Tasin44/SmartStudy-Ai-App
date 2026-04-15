@@ -6,12 +6,12 @@ from rest_framework import serializers
 from django.core.mail import send_mail
 from authapp.models import OTP
 from profileapp.models import UserProfile
-from .serializers import TwoFASendSerializer,TwoFAVerifySerializer
+from .serializers import TwoFASendSerializer,TwoFAVerifySerializer,ParentalControlSerializer
 import random
 import string
 from django.utils import timezone
 from datetime import timedelta
-
+from .models import ParentalControl
 # Create your views here.
 
 class TwoFASendOTPView(StandardResponseMixin, APIView):
@@ -129,4 +129,35 @@ class TwoFAStatusView(StandardResponseMixin, APIView):
             },
             message="2FA status fetched successfully."
         )
- 
+
+
+
+
+class ParentalControlCreateView(StandardResponseMixin, APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = ParentalControlSerializer(data=request.data)
+        if not serializer.is_valid():
+            reason = extract_first_error(serializer.errors)
+            return self.error_response(f"Invalid request: {reason}", status_code=400, data=serializer.errors)
+
+        obj = serializer.save(user=request.user)
+        # Send email
+        relation = "parent" if obj.relation_type == "parent" else "child"
+        body = f"Hello, Greeting from Smart Study AI APP Team. The user {request.user.last_name or request.user.email} added you {obj.related_email} as a {relation}."
+        send_mail(
+            subject="Parental Control Notification",
+            message=body,
+            from_email="noreply@studyapp.com",
+            recipient_list=[obj.related_email],
+        )
+        return self.success_response(
+            {
+                "id": obj.id,
+                "related_email": obj.related_email,
+                "relation_type": obj.relation_type,
+            },
+            message="Parental control relation created and email sent.",
+            status_code=201,
+        )

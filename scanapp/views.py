@@ -1,12 +1,13 @@
 from django.shortcuts import render
 import os,base64,httpx
+from django.db.models import Count
 # Create your views here.
 from coreapp.paginations import StandardPagination
 from coreapp.mixins import StandardResponseMixin,extract_first_error
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser,FormParser,JSONParser
-from .serializers import ScanHistorySerializer,ScanRequestSerializer
+from .serializers import ScanHistorySerializer,ScanRequestSerializer, AiPersonalizationSerializer
 from .models import ScanHistory,SUBJECT_CHOICES
 from authapp.models import User
 from profileapp.models import UserProfile
@@ -157,11 +158,19 @@ class ScanHistoryView(StandardResponseMixin, APIView):
  
     def get(self, request):
         # Filter by owner — users never see each other's scans
-        qs = ScanHistory.objects.filter(user=request.user)
+        base_qs = ScanHistory.objects.filter(user=request.user)
+        qs = base_qs
  
         subject = request.query_params.get('subject')
         if subject:
             qs = qs.filter(subject=subject)#❓❓❓ is qs object here?
+
+        # Subject-wise totals for this user (works with or without subject filter)
+        subject_summary = list(
+            base_qs.values('subject')
+            .annotate(total_images=Count('id'))
+            .order_by('subject')
+        )
  
         # only('id','subject','question','ai_response','created_at') avoids loading
         # the large image binary path unnecessarily — handled by get_image_url
@@ -171,7 +180,19 @@ class ScanHistoryView(StandardResponseMixin, APIView):
         paginator = StandardPagination()
         page = paginator.paginate_queryset(qs, request)
         serializer = ScanHistorySerializer(page, many=True, context={'request': request})
-        return paginator.get_paginated_response(serializer.data)
+        paginated_response = paginator.get_paginated_response(serializer.data)
+
+        current_subject_total = qs.count() if subject else None
+
+        return self.success_response(
+            {
+                "history": paginated_response.data,
+                "subject_filter": subject,
+                "current_subject_total": current_subject_total,
+                "subject_summary": subject_summary,
+            },
+            message="Scan history fetched successfully."
+        )
 
 
 
@@ -180,6 +201,31 @@ class ScanHistoryView(StandardResponseMixin, APIView):
 
 class SaveScanToLibraryView(StandardResponseMixin, APIView):
     pass 
+
+
+class AiPersonalizationCreateView(StandardResponseMixin, APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [JSONParser]
+
+    def post(self, request):
+        serializer = AiPersonalizationSerializer(data=request.data)
+        if not serializer.is_valid():
+            reason = extract_first_error(serializer.errors)
+            return self.error_response(f"Invalid request: {reason}", status_code=400, data=serializer.errors)
+
+        obj = serializer.save(user=request.user)
+        return self.success_response(
+            {
+                "id": str(obj.id),
+                "model": obj.model,
+                "response_sytel": obj.response_sytel,
+                "dificulty_level": obj.dificulty_level,
+                "language": obj.language,
+                "subject_focus_area": obj.subject_focus_area,
+            },
+            message="AI personalization saved successfully.",
+            status_code=201,
+        )
 
 
 

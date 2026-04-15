@@ -56,3 +56,24 @@ class ScanHistory(models.Model):
  
     def __str__(self):
         return f"Scan({self.user.email}, {self.subject})"
+
+
+class AiPersonalization(models.Model):
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='ai_personalizations',
+        db_index=True,
+    )
+    model = models.CharField(max_length=100)
+    response_sytel = models.CharField(max_length=100)
+    dificulty_level = models.CharField(max_length=100)
+    language = models.CharField(max_length=100)
+    subject_focus_area = models.CharField(max_length=100)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"AiPersonalization({self.user_id}, {self.model})"

@@ -1,7 +1,7 @@
 
 
 from rest_framework import serializers
-from .models import ScanHistory,SUBJECT_CHOICES
+from .models import ScanHistory,SUBJECT_CHOICES, AiPersonalization
 
 
 class ScanRequestSerializer(serializers.Serializer):
@@ -24,6 +24,12 @@ class ScanHistorySerializer(serializers.ModelSerializer):
         if obj.image and request:
             return request.build_absolute_uri(obj.image.url)
         return None
+
+
+class AiPersonalizationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AiPersonalization
+        fields = ['model', 'response_sytel', 'dificulty_level', 'language', 'subject_focus_area']
 
 
 

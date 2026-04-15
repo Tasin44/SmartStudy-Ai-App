@@ -4,11 +4,12 @@ from django.urls import path
 from drf_yasg import openapi
 from drf_yasg.views import get_schema_view
 from rest_framework import permissions
-from .views import ScanView, ScanHistoryView
+from .views import ScanView, ScanHistoryView, AiPersonalizationCreateView
 
 app_urlpatterns = [
     path('', ScanView.as_view(), name='scan'),
     path('history/', ScanHistoryView.as_view(), name='scan-history'),
+    path('ai-personalization/', AiPersonalizationCreateView.as_view(), name='ai-personalization-create'),
 ]
 
 schema_view = get_schema_view(

@@ -1,7 +1,7 @@
 import random
 import string
 from rest_framework import serializers
-
+from .models import ParentalControl
 
 class TwoFASendSerializer(serializers.Serializer):
     """User provides an email address to receive the 2FA OTP."""
@@ -18,3 +18,11 @@ class TwoFAVerifySerializer(serializers.Serializer):
  
     def validate_email(self, value):
         return value.lower().strip()
+
+
+
+
+class ParentalControlSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ParentalControl
+        fields = ['related_email', 'relation_type']
