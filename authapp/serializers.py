@@ -99,7 +99,7 @@ class SignupSerializer(serializers.Serializer):
     '''
     @staticmethod
     def send_otp_email(email, otp_code):
-        subject = "Your Verification Code – Dalil AI Tourist Guide"
+        subject = "Your Verification Code"
         message = f"""Dear User,
 
 Thank you for registering with Dalil – Your Smart AI Travel Guide.
