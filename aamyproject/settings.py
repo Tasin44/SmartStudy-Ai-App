@@ -52,8 +52,19 @@ INSTALLED_APPS = [
     'scanapp',
     'libraryapp',
     'twofapp',
+    'adminapp',
 
 ]
+SITE_ID = 1
+
+REST_USE_JWT = True   # Important for returning JWT tokens
+
+SOCIALACCOUNT_PROVIDERS = {
+    'google': {
+        'SCOPE': ['profile', 'email'],
+        'AUTH_PARAMS': {'access_type': 'online'},
+    }
+}
 
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
