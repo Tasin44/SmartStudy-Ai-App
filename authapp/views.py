@@ -125,6 +125,10 @@ class ResendOTPView(StandardResponseMixin, APIView):
 class LoginView(StandardResponseMixin, APIView):
     permission_classes = [AllowAny]
 
+    @staticmethod
+    def _get_user_role(user):
+        return "admin" if user.is_superuser or user.is_staff else "user"
+
     @swagger_auto_schema(request_body=LoginSerializer)
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
@@ -139,6 +143,7 @@ class LoginView(StandardResponseMixin, APIView):
                     "user": {
                         "id": str(user.id),
                         "email": user.email,
+                        "role": self._get_user_role(user),
                         # "name": user.first_name
                     }
                 },

@@ -6,6 +6,11 @@ from .views import (
     SignupView, VerifyOTPView, ResendOTPView, LoginView,
     LogoutView, ForgotPasswordView, ResetPasswordView
 )
+from .new_views import (
+    NewAccessTokenFromRefreshView,
+    NewResetPasswordNoTokenView,
+    NewVerifyOTPView,
+)
 
 app_urlpatterns = [
     path('signup/', SignupView.as_view(), name='signup'),
@@ -15,6 +20,12 @@ app_urlpatterns = [
     path('logout/', LogoutView.as_view(), name='logout'),
     path('forgot-password/', ForgotPasswordView.as_view(), name='forgot-password'),
     path('reset-password/', ResetPasswordView.as_view(), name='reset-password'),
+]
+
+new_app_urlpatterns = [
+    path('new/verify-otp/', NewVerifyOTPView.as_view(), name='new-verify-otp'),
+    path('new/reset-password/', NewResetPasswordNoTokenView.as_view(), name='new-reset-password'),
+    path('new/token/refresh/', NewAccessTokenFromRefreshView.as_view(), name='new-token-refresh'),
 ]
 
 schema_view = get_schema_view(
@@ -31,4 +42,4 @@ schema_view = get_schema_view(
 urlpatterns = [
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='auth-swagger-ui'),
     path('swagger.json', schema_view.without_ui(cache_timeout=0), name='auth-swagger-json'),
-] + app_urlpatterns
+] + app_urlpatterns + new_app_urlpatterns
