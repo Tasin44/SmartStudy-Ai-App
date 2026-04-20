@@ -11,6 +11,39 @@ from .models import TermsConditionSection
 User = get_user_model()
 
 DEFAULT_PLAN_CHOICES = ("monthly", "yearly")
+DEFAULT_SUBSCRIPTION_STATUS = "monthly"
+PLAN_BY_SUBSCRIPTION_STATUS = {
+    "monthly": "basic",
+    "yearly": "premium",
+}
+
+
+def normalize_subscription_status(value):
+    if not value:
+        return DEFAULT_SUBSCRIPTION_STATUS
+    normalized = str(value).strip().lower()
+    if normalized in DEFAULT_PLAN_CHOICES:
+        return normalized
+    return DEFAULT_SUBSCRIPTION_STATUS
+
+
+def get_user_subscription_status(user):
+    # Placeholder-friendly resolver until dedicated subscription model is integrated.
+    candidates = [
+        getattr(user, "subscription_status", None),
+        getattr(user, "plan_type", None),
+        getattr(getattr(user, "profile", None), "subscription_status", None),
+    ]
+    for candidate in candidates:
+        normalized = normalize_subscription_status(candidate)
+        if candidate and normalized in DEFAULT_PLAN_CHOICES:
+            return normalized
+    return DEFAULT_SUBSCRIPTION_STATUS
+
+
+def get_current_plan_from_subscription(subscription_status):
+    normalized_status = normalize_subscription_status(subscription_status)
+    return PLAN_BY_SUBSCRIPTION_STATUS[normalized_status]
 
 
 class AdminUserListSerializer(serializers.ModelSerializer):
@@ -66,10 +99,10 @@ class AdminUserListSerializer(serializers.ModelSerializer):
         return "verified" if obj.verified else "not_verified"
 
     def get_subscription_status(self, obj):
-        return "monthly"
+        return get_user_subscription_status(obj)
 
     def get_current_plan(self, obj):
-        return "monthly"
+        return get_current_plan_from_subscription(self.get_subscription_status(obj))
 
     def get_start_date(self, obj):
         start_date, _ = self._default_start_end()
@@ -127,6 +160,10 @@ class AdminUserUpdateSerializer(serializers.Serializer):
         choices=DEFAULT_PLAN_CHOICES,
         required=False,
     )
+    current_plan = serializers.ChoiceField(
+        choices=DEFAULT_PLAN_CHOICES,
+        required=False,
+    )
 
     def validate_name(self, value):
         cleaned = value.strip()
@@ -141,13 +178,18 @@ class AdminUserUpdateSerializer(serializers.Serializer):
             profile.name = validated_data["name"]
         if "image" in validated_data:
             profile.image = validated_data["image"]
+
+        if "subscription_status" in validated_data:
+            profile.subscription_status = normalize_subscription_status(validated_data["subscription_status"])
+        if "current_plan" in validated_data:
+            profile.subscription_status = normalize_subscription_status(validated_data["current_plan"])
+
         profile.save()
 
         if "verified" in validated_data:
             instance.verified = validated_data["verified"]
             instance.save(update_fields=["verified", "updated_at"])
 
-        # subscription_status is accepted as placeholder input for future integration.
         return instance
 
 

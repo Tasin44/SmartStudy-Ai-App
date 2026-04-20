@@ -37,6 +37,9 @@ class UserProfile(models.Model):
  
     # Number of calendar days the user has been active (frontend increments daily)
     active_days = models.PositiveIntegerField(default=0)
+
+    # Placeholder subscription status used by admin user management.
+    subscription_status = models.CharField(max_length=20, default='monthly')
  
     # Two-factor auth toggle — set True after OTP verification in 2FA flow
     two_factor_enabled = models.BooleanField(default=False)

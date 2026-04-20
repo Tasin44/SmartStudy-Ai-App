@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.db.models.functions import TruncDate
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -23,6 +23,9 @@ from .serializers import (
     AdminUserUpdateSerializer,
     TermsConditionBulkCreateSerializer,
     TermsConditionSectionSerializer,
+    get_current_plan_from_subscription,
+    get_user_subscription_status,
+    normalize_subscription_status,
 )
 
 User = get_user_model()
@@ -56,13 +59,69 @@ class AdminUserListCreateView(StandardResponseMixin, APIView):
 
         search = request.query_params.get("search")
         if search:
-            queryset = queryset.filter(email__icontains=search)
+            search = search.strip()
+            queryset = queryset.filter(
+                Q(email__icontains=search)
+                | Q(profile__name__icontains=search)
+                | Q(first_name__icontains=search)
+                | Q(last_name__icontains=search)
+            )
+
+        account_status = request.query_params.get("account_status")
+        if account_status:
+            normalized_account_status = account_status.strip().lower()
+            if normalized_account_status in {"verified", "true", "1"}:
+                queryset = queryset.filter(verified=True)
+            elif normalized_account_status in {"not_verified", "unverified", "false", "0"}:
+                queryset = queryset.filter(verified=False)
+            else:
+                return self.error_response(
+                    "Invalid account_status. Use verified or not_verified.",
+                    status_code=400,
+                )
+
+        subscription_status_filter = request.query_params.get("subscription_status")
+        normalized_subscription_status = None
+        if subscription_status_filter:
+            raw_status = subscription_status_filter.strip().lower()
+            if raw_status not in {"monthly", "yearly"}:
+                return self.error_response(
+                    "Invalid subscription_status. Use monthly or yearly.",
+                    status_code=400,
+                )
+            normalized_subscription_status = normalize_subscription_status(raw_status)
+
+        current_plan_filter = request.query_params.get("current_plan")
+        normalized_current_plan = None
+        if current_plan_filter:
+            raw_plan = current_plan_filter.strip().lower()
+            if raw_plan not in {"basic", "premium"}:
+                return self.error_response(
+                    "Invalid current_plan. Use basic or premium.",
+                    status_code=400,
+                )
+            normalized_current_plan = raw_plan
+
+        filtered_users = list(queryset)
+        if normalized_subscription_status:
+            filtered_users = [
+                user
+                for user in filtered_users
+                if get_user_subscription_status(user) == normalized_subscription_status
+            ]
+
+        if normalized_current_plan:
+            filtered_users = [
+                user
+                for user in filtered_users
+                if get_current_plan_from_subscription(get_user_subscription_status(user)) == normalized_current_plan
+            ]
 
         default_start_date = timezone.now().date()
         default_expiry_date = default_start_date + timedelta(days=30)
 
         paginator = StandardPagination()
-        page = paginator.paginate_queryset(queryset, request)
+        page = paginator.paginate_queryset(filtered_users, request)
         serializer = AdminUserListSerializer(
             page,
             many=True,
