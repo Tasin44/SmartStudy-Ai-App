@@ -177,6 +177,11 @@ class AdminUserDetailView(StandardResponseMixin, APIView):
         payload = AdminUserListSerializer(user, context={"request": request}).data
         return self.success_response(payload, message="User updated successfully.")
 
+    def delete(self, request, user_id):
+        user = get_object_or_404(User, id=user_id)
+        user.delete()
+        return self.success_response(None, message="User deleted successfully.")
+
 
 class AdminUserSubscriptionStatusView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated, IsAdminUser]
