@@ -16,7 +16,7 @@ class SendMessageSerializer(serializers.Serializer):
     """Send a message in an existing session."""
     message = serializers.CharField(min_length=1, max_length=2000)
     model = serializers.ChoiceField(
-        choices=["gpt", "claude"],
+        choices=["gpt", "claude","gemini"],
         default="gpt"
     )
 
@@ -38,7 +38,7 @@ class AskAIMessageSerializer(serializers.Serializer):
     message = serializers.CharField(min_length=1, max_length=2000)
     subject = serializers.ChoiceField(choices=[c[0] for c in SUBJECT_CHOICES],required=False, allow_null=True)
     model = serializers.ChoiceField(
-        choices=["gpt", "claude"],
+        choices=["gpt", "claude","gemini"],
         default="gpt"
     )
 

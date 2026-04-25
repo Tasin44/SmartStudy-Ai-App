@@ -50,7 +50,7 @@ def call_chat_ai(subject: str, history: list, user_message: str,model_choice: st
     # 🔥 MODEL SWITCHING LOGIC
     if model_choice == "gpt":
         api_key = os.getenv("OPENAI_API_KEY")
-        print(api_key)
+        print(f"Open ai api key: {api_key}")
 
         if not api_key:
             raise ValueError(
@@ -78,10 +78,59 @@ def call_chat_ai(subject: str, history: list, user_message: str,model_choice: st
             raise ValueError(f"GPT error: {response.text}")
 
         return response.json()['choices'][0]['message']['content']
+    # '''
+    # elif model_choice == "claude":
+    #     api_key = os.getenv("CLAUDE_API_KEY")
+    #     print(f"Claude ai api key: {api_key}")
+    #     url = "https://api.anthropic.com/v1/messages"
 
+    #     response = httpx.post(
+    #         url,
+    #         headers={
+    #             "x-api-key": api_key,
+    #             "anthropic-version": "2023-06-01",
+    #             "Content-Type": "application/json"
+    #         },
+    #         json={
+    #             "model": "claude-3-sonnet-20240229",
+    #             "max_tokens": 1500,
+    #             "messages": messages
+    #         },
+    #         timeout=60.0
+    #     )
+
+    #     if response.status_code != 200:
+    #         raise ValueError(f"Claude error: {response.text}")
+
+    #     return response.json()['content'][0]['text'] ##❓❓❓ explain this line
+    # '''
     elif model_choice == "claude":
         api_key = os.getenv("CLAUDE_API_KEY")
+        print(f"Claude ai api key: {api_key}")
+
+        if not api_key:
+            raise ValueError(
+                "AI service is not configured. "
+                "Please ask the administrator to set CLAUDE_API_KEY."
+            )
+
         url = "https://api.anthropic.com/v1/messages"
+
+        # Claude requires system separately
+        claude_messages = []
+
+        for msg in history:
+            if msg["role"] in ["user", "assistant"]:
+                claude_messages.append({
+                    "role": msg["role"],
+                    "content": msg["content"]
+                })
+
+        # add latest user message
+        claude_messages.append({
+            "role": "user",
+            "content": user_message
+        })
 
         response = httpx.post(
             url,
@@ -91,9 +140,10 @@ def call_chat_ai(subject: str, history: list, user_message: str,model_choice: st
                 "Content-Type": "application/json"
             },
             json={
-                "model": "claude-3-sonnet-20240229",
+                "model": "claude-2.1",
                 "max_tokens": 1500,
-                "messages": messages
+                "system": system_prompt,
+                "messages": claude_messages
             },
             timeout=60.0
         )
@@ -101,7 +151,54 @@ def call_chat_ai(subject: str, history: list, user_message: str,model_choice: st
         if response.status_code != 200:
             raise ValueError(f"Claude error: {response.text}")
 
-        return response.json()['content'][0]['text'] ##❓❓❓ explain this line
+        return response.json()["content"][0]["text"]
+    elif model_choice == "gemini":
+        api_key = os.getenv("GEMINI_API_KEY")
+        print(f"Gemini api key: {api_key}")
+
+        if not api_key:
+            raise ValueError(
+                "AI service is not configured. "
+                "Please ask the administrator to set GEMINI_API_KEY."
+            )
+
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+
+        # Build conversation for Gemini
+        conversation_text = ""
+
+        if subject:
+            conversation_text += f"System Instruction: {system_prompt}\n\n"
+        else:
+            conversation_text += f"{system_prompt}\n\n"
+
+        for msg in history:
+            role = "User" if msg["role"] == "user" else "Assistant"
+            conversation_text += f"{role}: {msg['content']}\n"
+
+        conversation_text += f"User: {user_message}"
+
+        response = httpx.post(
+            url,
+            headers={
+                "Content-Type": "application/json"
+            },
+            json={
+                "contents": [
+                    {
+                        "parts": [
+                            {"text": conversation_text}
+                        ]
+                    }
+                ]
+            },
+            timeout=60.0
+        )
+
+        if response.status_code != 200:
+            raise ValueError(f"Gemini error: {response.text}")
+
+        return response.json()["candidates"][0]["content"]["parts"][0]["text"]
 
     else:
         raise ValueError("Invalid AI model selected")
