@@ -42,7 +42,29 @@ class GoogleLogin(SocialLoginView):
 
     def post(self, request, *args, **kwargs):
         try:
-            return super().post(request, *args, **kwargs)
+            response = super().post(request, *args, **kwargs)
+            
+            if response.status_code in [200, 201]:
+                user = getattr(self, 'user', None)
+                if not user and hasattr(response, 'data') and response.data and response.data.get('user'):
+                    user_id = response.data['user'].get('pk') or response.data['user'].get('id')
+                    if user_id:
+                        from django.contrib.auth import get_user_model
+                        User = get_user_model()
+                        user = User.objects.filter(pk=user_id).first()
+                
+                if user:
+                    from profileapp.models import UserProfile
+                    profile, _ = UserProfile.objects.get_or_create(user=user)
+                    if not profile.name:
+                        first_name = getattr(user, 'first_name', '') or ""
+                        last_name = getattr(user, 'last_name', '') or ""
+                        full_name = f"{first_name} {last_name}".strip()
+                        if full_name:
+                            profile.name = full_name
+                            profile.save(update_fields=['name'])
+
+            return response
         except Site.DoesNotExist:
             return Response(
                 {
