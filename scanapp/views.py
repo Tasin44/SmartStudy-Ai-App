@@ -112,10 +112,19 @@ def call_ai(file_obj, subject: str, question: str, model="gpt-4o"):
 
             mime = f"image/{ext}"
 
+            system_msg = (
+                f"You are an expert {subject} tutor. "
+                "Analyze the image carefully and provide a thorough, step-by-step explanation. "
+                "For MCQs, evaluate each option and clearly state the correct answer at the end. "
+                "For math problems, show ALL working steps and bold the final answer. "
+                "Use Markdown formatting and LaTeX ($$...$$) for equations. "
+                "Always end with a ### ✅ Final Answer section."
+            )
+
             payload = {
                 "model": model,
                 "messages": [
-                    {"role": "system", "content": f"You are an expert {subject} tutor."},
+                    {"role": "system", "content": system_msg},
                     {
                         "role": "user",
                         "content": [
@@ -127,7 +136,8 @@ def call_ai(file_obj, subject: str, question: str, model="gpt-4o"):
                         ]
                     }
                 ],
-                "max_tokens": 1500
+                "max_tokens": 4096,
+                "temperature": 0.3
             }
 
         # ================= PDF =================
@@ -144,10 +154,16 @@ def call_ai(file_obj, subject: str, question: str, model="gpt-4o"):
             payload = {
                 "model": model,
                 "messages": [
-                    {"role": "system", "content": f"You are an expert {subject} tutor."},
+                    {"role": "system", "content": (
+                        f"You are an expert {subject} tutor. "
+                        "Provide detailed, step-by-step explanations. For MCQs, evaluate each option. "
+                        "For math, show all working. Use Markdown and LaTeX. "
+                        "Always end with a ### ✅ Final Answer section."
+                    )},
                     {"role": "user", "content": f"{text}\n\nQuestion: {question}"}
                 ],
-                "max_tokens": 1500
+                "max_tokens": 4096,
+                "temperature": 0.3
             }
 
         # ================= DOCX =================
@@ -162,10 +178,16 @@ def call_ai(file_obj, subject: str, question: str, model="gpt-4o"):
             payload = {
                 "model": model,
                 "messages": [
-                    {"role": "system", "content": f"You are an expert {subject} tutor."},
+                    {"role": "system", "content": (
+                        f"You are an expert {subject} tutor. "
+                        "Provide detailed, step-by-step explanations. For MCQs, evaluate each option. "
+                        "For math, show all working. Use Markdown and LaTeX. "
+                        "Always end with a ### ✅ Final Answer section."
+                    )},
                     {"role": "user", "content": f"{text}\n\nQuestion: {question}"}
                 ],
-                "max_tokens": 1500
+                "max_tokens": 4096,
+                "temperature": 0.3
             }
 
         else:

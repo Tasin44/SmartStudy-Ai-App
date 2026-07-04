@@ -1,6 +1,12 @@
 from django.shortcuts import render
 import os 
 import httpx
+
+# Reusable HTTP client with connection pooling for faster AI API calls
+_http_client = httpx.Client(
+    timeout=90.0,
+    limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
+)
 # Create your views here.
 from coreapp.mixins import StandardResponseMixin,extract_first_error
 from coreapp.paginations import PageNumberPagination,StandardPagination
@@ -22,17 +28,37 @@ def call_chat_ai(subject: str, history: list, user_message: str,model_choice: st
 
     import os,httpx 
  
+    # ── Build a rich, detailed system prompt ──
+    base_instructions = (
+        "RESPONSE RULES — follow every one:\n"
+        "1. **Understand first**: Restate the question/problem in your own words so the student knows you understood it.\n"
+        "2. **Explain step by step**: Break the solution into clear, numbered steps. "
+        "Show ALL intermediate working — do NOT skip steps.\n"
+        "3. **Use proper formatting**: Use Markdown. Use **bold** for key terms, "
+        "`inline code` for formulas/variables, and LaTeX ($$...$$) for math equations.\n"
+        "4. **For MCQ / multiple-choice questions**: First explain WHY each option is correct or incorrect, "
+        "then clearly state the correct answer at the end with: **✅ Answer: (letter) — explanation**.\n"
+        "5. **For math / calculation problems**: Show every algebraic/arithmetic step. "
+        "Box or bold the final numerical result.\n"
+        "6. **For conceptual questions**: Give a thorough explanation with real-world examples or analogies.\n"
+        "7. **Final answer**: ALWAYS end with a clearly marked section: \n"
+        "   ### ✅ Final Answer\n"
+        "   State the definitive answer here.\n"
+        "8. Be thorough and detailed — never give a vague or partial answer.\n"
+    )
+
     if subject:
         system_prompt = (
-            f"You are an expert {subject} tutor. "
-            f"Analyze the provided image and answer clearly step by step. "
-            f"Focus only on {subject}-related content."
+            f"You are an expert **{subject}** tutor with deep knowledge of the subject. "
+            f"Focus on {subject}-related content. "
+            f"If the student sends an image, analyze it carefully before answering.\n\n"
+            f"{base_instructions}"
         )
     else:
         system_prompt = (
-            "You are an intelligent AI tutor. "
-            "Analyze the provided image and explain it clearly step by step. "
-            "Answer based on any relevant subject."
+            "You are an intelligent AI tutor capable of answering questions across all subjects. "
+            "If the student sends an image, analyze it carefully before answering.\n\n"
+            f"{base_instructions}"
         )
 
     #❓❓❓ what does two messages means? why they two used 
@@ -62,18 +88,18 @@ def call_chat_ai(subject: str, history: list, user_message: str,model_choice: st
         
         url = "https://api.openai.com/v1/chat/completions"
 
-        response = httpx.post(
+        response = _http_client.post(
             url,
             headers={
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json"
             },
             json={
-                "model": "gpt-4o",
+                "model": "gpt-4o-mini",
                 "messages": messages,
-                "max_tokens": 1500
+                "max_tokens": 4096,
+                "temperature": 0.3
             },
-            timeout=60.0
         )
 
         if response.status_code != 200:
@@ -138,30 +164,20 @@ def call_chat_ai(subject: str, history: list, user_message: str,model_choice: st
             "content": [{"type": "text", "text": user_message}]
         })
 
-        response = httpx.post(
+        response = _http_client.post(
             url,
             headers={
                 "x-api-key": api_key,
-                # "anthropic-version": "2023-06-01",
-                #"anthropic-version": "2024-06-01",
                 "anthropic-version": "2023-06-01",
                 "Content-Type": "application/json"
             },
             json={
-                # "model": "claude-3-haiku-20240307",
-                #"model": "claude-3-5-sonnet-latest",
-                # "model": "claude-3-haiku-latest",
-                # "model": "claude-3-sonnet-20240229",
-                # "model": "claude-3-haiku-20240307",
-                # "model": "claude-3-5-haiku-latest",
-                # "model":"claude-3-5-haiku-20241022",
-                # "model": "claude-2.1",
-                "model": "claude-sonnet-4-5-20250929",
-                "max_tokens": 1500,
+                "model": "claude-3-5-haiku-latest",
+                "max_tokens": 4096,
+                "temperature": 0.3,
                 "system": system_prompt,
                 "messages": claude_messages
             },
-            timeout=60.0
         )
 
         if response.status_code != 200:
@@ -194,7 +210,7 @@ def call_chat_ai(subject: str, history: list, user_message: str,model_choice: st
 
         conversation_text += f"User: {user_message}"
 
-        response = httpx.post(
+        response = _http_client.post(
             url,
             headers={
                 "Content-Type": "application/json"
@@ -206,9 +222,12 @@ def call_chat_ai(subject: str, history: list, user_message: str,model_choice: st
                             {"text": conversation_text}
                         ]
                     }
-                ]
+                ],
+                "generationConfig": {
+                    "maxOutputTokens": 4096,
+                    "temperature": 0.3
+                }
             },
-            timeout=60.0
         )
 
         if response.status_code != 200:
